@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calculer une longueur pas à pas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=STIX+Two+Text:ital,wght@0,400;0,600;1,400;1,600&display=swap" rel="stylesheet">
+<style>
+/* Mise en page : figure à gauche, question puis rédaction à droite ; une colonne sur téléphone. */
+:root{
+  --bg:#f2f5f9; --panel:#ffffff; --ink:#16233b; --muted:#5b6880; --line:#d5dce8;
+  --accent:#2350c4; --accent-soft:#e3eafb;
+  --adj:#0a7f72; --opp:#c2500f; --hyp:#7a3cc0;
+  --good:#1b7f3b; --good-soft:#e2f4e7; --bad:#b3261e; --bad-soft:#fbe6e4;
+  --ui:"Figtree",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --math:"STIX Two Text","Cambria Math",Cambria,Georgia,serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#111724; --panel:#1a2233; --ink:#e8edf6; --muted:#9ba8be; --line:#33405a;
+    --accent:#86a6ff; --accent-soft:#24335a;
+    --adj:#4fd0bf; --opp:#ff9a5c; --hyp:#c29bff;
+    --good:#6fd08a; --good-soft:#1c3a27; --bad:#ff8f86; --bad-soft:#47221f;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#111724; --panel:#1a2233; --ink:#e8edf6; --muted:#9ba8be; --line:#33405a;
+  --accent:#86a6ff; --accent-soft:#24335a;
+  --adj:#4fd0bf; --opp:#ff9a5c; --hyp:#c29bff;
+  --good:#6fd08a; --good-soft:#1c3a27; --bad:#ff8f86; --bad-soft:#47221f;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--ui);font-size:18px;line-height:1.45}
+.wrap{max-width:1120px;margin:0 auto;padding:20px 16px 40px;display:flex;flex-direction:column;gap:16px}
+header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px}
+h1{font-size:1.35rem;margin:0;font-weight:700;text-wrap:balance}
+.tabs{display:flex;flex-wrap:wrap;gap:6px}
+.tab{font:inherit;font-size:.95rem;font-weight:600;border:1.5px solid var(--line);background:var(--panel);color:var(--ink);
+  border-radius:999px;padding:6px 14px;cursor:pointer}
+.tab[aria-current="true"]{background:var(--accent);border-color:var(--accent);color:var(--panel)}
+.tab.done:not([aria-current="true"]){border-color:var(--good);color:var(--good)}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:16px;align-items:start}
+@media (max-width:820px){.grid{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px}
+.right{display:flex;flex-direction:column;gap:16px}
+.figure svg{display:block;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.85rem;color:var(--muted);margin-top:6px}
+.legend i{display:inline-block;width:18px;height:4px;border-radius:2px;vertical-align:middle;margin-right:6px}
+
+/* figure */
+.side{stroke:var(--ink);stroke-width:1.6;stroke-linecap:round}
+.side.current{stroke:var(--accent);stroke-width:5}
+.side.adj{stroke:var(--adj);stroke-width:4}
+.side.opp{stroke:var(--opp);stroke-width:4}
+.side.hyp{stroke:var(--hyp);stroke-width:4}
+.vtx{font-family:var(--math);font-style:italic;font-size:22px;fill:var(--ink)}
+.len{font-family:var(--math);font-size:18px;fill:var(--ink)}
+.len.current{fill:var(--accent);font-weight:600}
+.len.adj{fill:var(--adj);font-weight:600}.len.opp{fill:var(--opp);font-weight:600}.len.hyp{fill:var(--hyp);font-weight:600}
+.wedge{fill:var(--ink)}
+.deg{font-family:var(--math);font-size:18px;fill:var(--ink)}
+.sq{fill:none;stroke:var(--ink);stroke-width:1.3}
+.sq.found{stroke:var(--accent);stroke-width:2.6}
+
+/* question */
+.stepline{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:.85rem;color:var(--muted);font-weight:600;margin-bottom:10px}
+.dots{display:flex;gap:5px}
+.dots span{width:20px;height:5px;border-radius:3px;background:var(--line)}
+.dots span.on{background:var(--accent)}
+.q{font-size:1.25rem;font-weight:600;margin:0 0 14px;text-wrap:balance}
+.m{font-family:var(--math);font-weight:400}
+.opts{display:flex;flex-wrap:wrap;gap:10px}
+.opt{font:inherit;font-weight:600;font-size:1.05rem;padding:11px 18px;border-radius:10px;border:1.5px solid var(--line);
+  background:var(--panel);color:var(--ink);cursor:pointer;transition:background .12s,border-color .12s}
+.opt:hover:not(:disabled){border-color:var(--accent);background:var(--accent-soft)}
+.opt:disabled{cursor:default}
+.opt.wrong{border-color:var(--bad);background:var(--bad-soft);color:var(--bad);opacity:.75}
+.opt.wrong:not(.expr){text-decoration:line-through}
+.opt.math{font-family:var(--math);font-style:italic;font-size:1.3rem;min-width:58px}
+.opt.expr{font-family:var(--math);font-weight:400;font-size:1.3rem;padding:8px 16px}
+.entry{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.entry label{font-size:1.3rem}
+.entry input{font:inherit;font-size:1.2rem;width:110px;padding:10px 12px;border-radius:10px;border:1.5px solid var(--line);
+  background:var(--panel);color:var(--ink);text-align:right;font-variant-numeric:tabular-nums}
+.entry .unit{font-family:var(--math);font-size:1.2rem}
+.primary{font:inherit;font-weight:700;font-size:1.05rem;padding:11px 20px;border-radius:10px;border:1.5px solid var(--accent);
+  background:var(--accent);color:var(--panel);cursor:pointer}
+.ghost{font:inherit;font-size:.9rem;font-weight:600;background:none;border:none;color:var(--muted);cursor:pointer;padding:6px 4px;text-decoration:underline}
+.fb{margin-top:14px;padding:10px 14px;border-radius:10px;font-size:1rem}
+.fb.ok{background:var(--good-soft);color:var(--good)}
+.fb.ko{background:var(--bad-soft);color:var(--bad)}
+.know{margin:0 0 12px;font-size:1rem;color:var(--muted)}
+.know b.adj{color:var(--adj)}.know b.opp{color:var(--opp)}.know b.hyp{color:var(--hyp)}
+.endrow{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+button:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+
+/* rédaction */
+.redac h2{font-size:.85rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 10px;font-weight:700}
+.lines{display:grid;grid-template-columns:auto auto 1fr;column-gap:.3em;row-gap:2px;align-items:center;
+  font-family:var(--math);font-size:1.45rem;overflow-x:auto}
+.full{grid-column:1 / -1;min-height:3.2rem;line-height:3.2rem}
+.lhs{text-align:right;justify-self:end;min-height:3.4rem;display:flex;align-items:center;padding-left:1.2em}
+.sym{min-height:3.4rem;display:flex;align-items:center}
+.rhs{min-height:3.4rem;display:flex;align-items:center}
+.wait{grid-column:1 / -1;min-height:3.4rem;border-bottom:2px dashed var(--line);margin-right:25%}
+.new{animation:pop .45s ease-out}
+@keyframes pop{from{opacity:.15;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.new{animation:none}.opt{transition:none}}
+.it{font-style:italic}
+.frac{display:inline-flex;flex-direction:column;text-align:center;vertical-align:middle;line-height:1.12;margin:0 .18em;font-size:.92em}
+.frac>span:first-child{border-bottom:1.5px solid currentColor;padding:0 .28em .04em}
+.frac>span:last-child{padding:.04em .28em 0}
+.sp{display:inline-block;transform:scaleY(1.35)}
+.hat{position:relative;display:inline-block;font-style:italic;padding:.26em .06em 0}
+.hat svg{position:absolute;left:0;top:.02em;width:100%;height:.3em;overflow:visible}
+.hat polyline{fill:none;stroke:currentColor;stroke-width:1.4;vector-effect:non-scaling-stroke;stroke-linejoin:round}
+.todo{color:var(--accent);font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Calculer une longueur, pas à pas</h1>
+    <nav class="tabs" id="tabs" aria-label="Choix du triangle"></nav>
+  </header>
+  <div class="grid">
+    <section class="card figure" aria-label="Figure">
+      <div id="fig"></div>
+      <div class="legend">
+        <span><i style="background:var(--adj)"></i>côté adjacent</span>
+        <span><i style="background:var(--opp)"></i>côté opposé</span>
+        <span><i style="background:var(--hyp)"></i>hypoténuse</span>
+      </div>
+    </section>
+    <div class="right">
+      <section class="card" id="question" aria-live="polite"></section>
+      <section class="card redac">
+        <h2>Ma rédaction</h2>
+        <div class="lines" id="lines"></div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+// R : sommet de l'angle droit, P : sommet de l'angle connu, Q : troisième sommet.
+// adj = [RP], opp = [RQ], hyp = [PQ]
+const TRIS = [
+  {name:'DEF', angle:'DFE', R:'E', P:'F', Q:'D', deg:38, known:{key:'hyp', val:9},   unknown:'adj', rot:-20,  flip:false},
+  {name:'GHK', angle:'KGH', R:'H', P:'G', Q:'K', deg:29, known:{key:'hyp', val:6.5}, unknown:'opp', rot:160,  flip:true },
+  {name:'LMN', angle:'NLM', R:'M', P:'L', Q:'N', deg:41, known:{key:'adj', val:5.2}, unknown:'opp', rot:35,   flip:false},
+  {name:'PQR', angle:'PRQ', R:'Q', P:'R', Q:'P', deg:52, known:{key:'opp', val:3.8}, unknown:'hyp', rot:-110, flip:true },
+  {name:'UVW', angle:'WUV', R:'V', P:'U', Q:'W', deg:35, known:{key:'opp', val:4.4}, unknown:'adj', rot:195,  flip:false}
+];
+const TYPE = {adj:'le côté adjacent', opp:'le côté opposé', hyp:'l’hypoténuse'};
+const SHORT = {adj:'adjacent', opp:'opposé', hyp:'hypoténuse'};
+const FN = {
+  cos:{nom:'le cosinus', court:'cos', num:'adj', den:'hyp', f:Math.cos},
+  sin:{nom:'le sinus',   court:'sin', num:'opp', den:'hyp', f:Math.sin},
+  tan:{nom:'la tangente',court:'tan', num:'opp', den:'adj', f:Math.tan}
+};
+const NSTEPS = 7;
+const fr = n => String(n).replace('.', ',');
+const seg = (a,b) => [a,b].sort().join('');
+const hat = s => `<span class="hat"><svg viewBox="0 0 100 20" preserveAspectRatio="none" aria-hidden="true"><polyline points="1,19 50,2 99,19"/></svg>${s}</span>`;
+const frac = (a,b) => `<span class="frac"><span>${a}</span><span>${b}</span></span>`;
+const it = s => `<span class="it">${s}</span>`;
+
+TRIS.forEach((t,i) => {
+  t.segName = {adj:seg(t.R,t.P), opp:seg(t.R,t.Q), hyp:seg(t.P,t.Q)};
+  const pair = [t.known.key, t.unknown].sort().join();
+  t.fn = pair === 'adj,hyp' ? 'cos' : pair === 'hyp,opp' ? 'sin' : 'tan';
+  const f = FN[t.fn], v = f.f(t.deg*Math.PI/180), rad = f.f(t.deg);
+  t.unkNum = (f.num === t.unknown);
+  t.exact = t.unkNum ? v*t.known.val : t.known.val/v;
+  t.radVal = t.unkNum ? rad*t.known.val : t.known.val/rad;
+  t.answer = Math.round(t.exact*10)/10;
+  t.x = it(t.segName[t.unknown]);
+  t.k = fr(t.known.val);
+  t.a = `${f.court}(${t.deg}°)`;
+  const disp = key => key === t.unknown ? t.x : t.k;
+  t.N = disp(f.num); t.D = disp(f.den);
+  // expressions proposées pour le produit en croix (la bonne en premier)
+  t.exprs = t.unkNum
+    ? [frac(`${t.a} × ${t.D}`, '1'), frac(`1 × ${t.D}`, t.a), frac(`${t.a} × 1`, t.D)]
+    : [frac(`${t.N} × 1`, t.a), frac(`${t.a} × ${t.N}`, '1'), frac(`${t.a} × 1`, t.N)];
+  t.exprOrder = [[0,1,2],[1,0,2],[2,0,1],[1,2,0],[0,2,1]][i];
+  t.subOrder = i % 2 ? ['swap','ok'] : ['ok','swap'];
+});
+
+const fresh = () => ({step:0, wrong:[], msg:null, fresh:-1});
+const state = TRIS.map(fresh);
+let cur = 0;
+
+/* ---------- figure ---------- */
+function drawFigure(t, s){
+  const W = 460, H = 360, pad = 70;
+  let pts = {R:[0,0], P:[1,0], Q:[0,Math.tan(t.deg*Math.PI/180)]};
+  const a = t.rot * Math.PI/180, c = Math.cos(a), sn = Math.sin(a);
+  for (const k in pts){
+    let [x,y] = pts[k]; if (t.flip) y = -y;
+    pts[k] = [x*c - y*sn, x*sn + y*c];
+  }
+  const xs = Object.values(pts).map(p=>p[0]), ys = Object.values(pts).map(p=>p[1]);
+  const minx = Math.min(...xs), maxx = Math.max(...xs), miny = Math.min(...ys), maxy = Math.max(...ys);
+  const k = Math.min((W-2*pad)/(maxx-minx), (H-2*pad)/(maxy-miny));
+  const ox = (W - k*(maxx-minx))/2 - k*minx, oy = (H - k*(maxy-miny))/2 - k*miny;
+  for (const n in pts) pts[n] = [pts[n][0]*k+ox, pts[n][1]*k+oy];
+  const {R,P,Q} = pts;
+  const G = [(R[0]+P[0]+Q[0])/3, (R[1]+P[1]+Q[1])/3];
+  const unit = (u,v) => { const d = Math.hypot(v[0]-u[0], v[1]-u[1]); return [(v[0]-u[0])/d, (v[1]-u[1])/d]; };
+
+  const status = {};
+  if (s.step === 1) status[t.known.key] = 'current';
+  if (s.step > 1) status[t.known.key] = t.known.key;
+  if (s.step === 2) status[t.unknown] = 'current';
+  if (s.step > 2) status[t.unknown] = t.unknown;
+
+  const ends = {adj:[R,P,Q], opp:[R,Q,P], hyp:[P,Q,R]};
+  let out = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Triangle ${t.name} rectangle en ${t.R}">`;
+
+  // angle connu
+  const d1 = unit(P,R), d2 = unit(P,Q), r = 32;
+  const sweep = (d1[0]*d2[1] - d1[1]*d2[0]) > 0 ? 1 : 0;
+  out += `<path class="wedge" d="M${P[0]},${P[1]} L${P[0]+r*d1[0]},${P[1]+r*d1[1]} A${r},${r} 0 0 ${sweep} ${P[0]+r*d2[0]},${P[1]+r*d2[1]} Z"/>`;
+  const bl = Math.hypot(d1[0]+d2[0], d1[1]+d2[1]), bis = [(d1[0]+d2[0])/bl, (d1[1]+d2[1])/bl];
+  out += `<text class="deg" x="${P[0]+62*bis[0]}" y="${P[1]+62*bis[1]}" text-anchor="middle" dominant-baseline="central">${t.deg}°</text>`;
+
+  // angle droit
+  const u = unit(R,P), v = unit(R,Q), q = 15;
+  out += `<path class="sq${s.step>0?' found':''}" d="M${R[0]+q*u[0]},${R[1]+q*u[1]} L${R[0]+q*(u[0]+v[0])},${R[1]+q*(u[1]+v[1])} L${R[0]+q*v[0]},${R[1]+q*v[1]}"/>`;
+
+  for (const key of ['adj','opp','hyp']){
+    const [A,B,C] = ends[key], st = status[key] || '';
+    out += `<line class="side ${st}" x1="${A[0]}" y1="${A[1]}" x2="${B[0]}" y2="${B[1]}"/>`;
+    if (key === t.known.key || key === t.unknown){
+      const m = [(A[0]+B[0])/2, (A[1]+B[1])/2], d = unit(A,B);
+      let n = [-d[1], d[0]];
+      if (n[0]*(m[0]-C[0]) + n[1]*(m[1]-C[1]) < 0) n = [-n[0], -n[1]];
+      let ang = Math.atan2(d[1], d[0])*180/Math.PI;
+      if (ang > 90) ang -= 180; if (ang < -90) ang += 180;
+      const lx = m[0]+22*n[0], ly = m[1]+22*n[1];
+      const base = key === t.known.key ? fr(t.known.val) + ' cm' : '?';
+      const label = base + (st && st!=='current' ? ' · ' + SHORT[key] : '');
+      out += `<text class="len ${st}" x="${lx}" y="${ly}" text-anchor="middle" dominant-baseline="central" transform="rotate(${ang} ${lx} ${ly})">${label}</text>`;
+    }
+  }
+  for (const [nm,p] of [[t.R,R],[t.P,P],[t.Q,Q]]){
+    const d = unit(G,p);
+    out += `<text class="vtx" x="${p[0]+22*d[0]}" y="${p[1]+22*d[1]}" text-anchor="middle" dominant-baseline="central">${nm}</text>`;
+  }
+  return out + '</svg>';
+}
+
+/* ---------- rédaction ---------- */
+function drawLines(t, s){
+  const f = FN[t.fn];
+  const row = (from, l, sym, r) => {
+    if (s.step < from) return `<div class="wait" aria-hidden="true"></div>`;
+    const nw = (s.fresh === from || (from === 6.5 && s.fresh === 7)) ? ' new' : '';
+    return `<div class="lhs${nw}">${l}</div><div class="sym${nw}">${sym}</div><div class="rhs${nw}">${r}</div>`;
+  };
+  const shown = (from) => s.step >= from;
+  let h = shown(1)
+    ? `<div class="full${s.fresh===1?' new':''}">Le triangle ${it(t.name)} est rectangle en ${it(t.R)}.</div>`
+    : `<div class="wait" aria-hidden="true"></div>`;
+  h += row(4, `${f.court}<span class="sp">(</span>${hat(t.angle)}<span class="sp">)</span>`, '=', frac(it(t.segName[f.num]), it(t.segName[f.den])));
+  h += row(5, t.a, '=', frac(t.N, t.D));
+  h += row(5, frac(t.a, '1'), '=', frac(t.N, t.D));
+  h += row(6, t.x, '=', t.exprs[0]);
+  if (s.step >= 6) h += row(6.5, t.x, '≈', s.step >= 7 ? fr(t.answer) : '<span class="todo">…</span>');
+  else h += `<div class="wait" aria-hidden="true"></div>`;
+  return h;
+}
+
+/* ---------- questions ---------- */
+function question(t, s){
+  const f = FN[t.fn];
+  const ang = `<span class="m">${hat(t.angle)}</span>`;
+  const btn = (val, label, cls='') =>
+    `<button type="button" class="opt ${cls}${s.wrong.includes(val)?' wrong':''}" data-val="${val}" ${s.wrong.includes(val)?'disabled':''}>${label}</button>`;
+  let h = `<div class="stepline"><span>${s.step < NSTEPS ? `Étape ${s.step+1} sur ${NSTEPS}` : 'Terminé'}</span>
+    <span class="dots" aria-hidden="true">${Array.from({length:NSTEPS},(_,i)=>`<span class="${i<s.step?'on':''}"></span>`).join('')}</span></div>`;
+
+  if (s.step === 0){
+    h += `<p class="q">Le triangle <span class="m">${it(t.name)}</span> est rectangle en…</p>
+      <div class="opts">${t.name.split('').map(l => btn(l, l, 'math')).join('')}</div>`;
+  } else if (s.step === 1){
+    h += `<p class="q">Pour l’angle ${ang}, le côté connu <span class="m">[${it(t.segName[t.known.key])}]</span>, qui mesure ${t.k} cm, est…</p>
+      <div class="opts">${['adj','opp','hyp'].map(k => btn(k, TYPE[k])).join('')}</div>`;
+  } else if (s.step === 2){
+    h += `<p class="q">Pour l’angle ${ang}, le côté cherché <span class="m">[${t.x}]</span> est…</p>
+      <div class="opts">${['adj','opp','hyp'].map(k => btn(k, TYPE[k])).join('')}</div>`;
+  } else if (s.step === 3){
+    h += `<p class="know">Je connais l’angle, <b class="${t.known.key}">${TYPE[t.known.key]}</b>, et je cherche <b class="${t.unknown}">${TYPE[t.unknown]}</b>.</p>
+      <p class="q">J’utilise donc… de l’angle ${ang}.</p>
+      <div class="opts">${['cos','sin','tan'].map(k => btn(k, FN[k].nom)).join('')}</div>`;
+  } else if (s.step === 4){
+    const opt = {
+      ok:   `${t.a} = ${frac(t.N, t.D)}`,
+      swap: `${t.a} = ${frac(t.D, t.N)}`
+    };
+    h += `<p class="q">Je remplace par les valeurs connues. Quelle égalité est juste ?</p>
+      <div class="opts">${t.subOrder.map(k => btn(k, opt[k], 'expr')).join('')}</div>`;
+  } else if (s.step === 5){
+    h += `<p class="know">J’écris <span class="m">${t.a}</span> sous la forme <span class="m">${frac(t.a,'1')}</span> pour faire un produit en croix.</p>
+      <p class="q">Le produit en croix donne…</p>
+      <div class="opts">${t.exprOrder.map(j => btn('e'+j, `${t.x} = ${t.exprs[j]}`, 'expr')).join('')}</div>`;
+  } else if (s.step === 6){
+    h += `<p class="q">Fais le calcul à la calculatrice, en mode degrés. Arrondis au dixième.</p>
+      <form class="entry" id="valform" autocomplete="off">
+        <label for="val" class="m">${t.x}&nbsp;≈</label>
+        <input id="val" name="val" type="text" inputmode="decimal" aria-label="Longueur ${t.segName[t.unknown]} en centimètres">
+        <span class="unit">cm</span>
+        <button class="primary" type="submit">Valider</button>
+      </form>`;
+  } else {
+    const last = cur === TRIS.length-1;
+    h += `<p class="q">Rédaction complète : <span class="m">${t.x}</span> mesure environ ${fr(t.answer)} cm.</p>
+      <div class="endrow">
+        <button type="button" class="primary" id="next">${last ? 'Revenir au triangle 1' : 'Triangle suivant'}</button>
+        <button type="button" class="ghost" id="redo">Refaire ce triangle</button>
+      </div>`;
+  }
+  if (s.msg) h += `<div class="fb ${s.msg.ok?'ok':'ko'}">${s.msg.text}</div>`;
+  if (s.step > 0 && s.step < NSTEPS) h += `<div style="margin-top:8px"><button type="button" class="ghost" id="redo">Recommencer ce triangle</button></div>`;
+  return h;
+}
+
+/* ---------- vérification ---------- */
+function sideHint(key, val){
+  const ang = `l’angle de ${TRIS[cur].deg}°`;
+  if (val === 'hyp') return 'L’hypoténuse est en face de l’angle droit. Ce côté-ci touche l’angle droit.';
+  if (key === 'hyp') return 'Regarde où se trouve ce côté par rapport à l’angle droit.';
+  if (val === 'adj') return `Le côté adjacent touche ${ang}. Celui-ci est en face.`;
+  return `Le côté opposé est en face de ${ang}. Celui-ci le touche.`;
+}
+function check(val){
+  const t = TRIS[cur], s = state[cur], f = FN[t.fn];
+  let ok = false, text = '';
+  if (s.step === 0){
+    ok = val === t.R;
+    text = ok ? `Oui, le petit carré marque l’angle droit en <span class="m">${it(t.R)}</span>.`
+              : 'Cherche le petit carré sur la figure : il marque l’angle droit.';
+  } else if (s.step === 1 || s.step === 2){
+    const key = s.step === 1 ? t.known.key : t.unknown;
+    const name = t.segName[key];
+    ok = val === key;
+    text = ok ? `Oui, <span class="m">[${it(name)}]</span> est ${TYPE[key]}.` : sideHint(key, val);
+  } else if (s.step === 3){
+    ok = val === t.fn;
+    text = ok ? `Oui : ${f.nom} = ${SHORT[f.num]} ÷ ${SHORT[f.den]}.`
+              : 'Rappel : cosinus = adjacent ÷ hypoténuse, sinus = opposé ÷ hypoténuse, tangente = opposé ÷ adjacent.';
+  } else if (s.step === 4){
+    ok = val === 'ok';
+    text = ok ? 'Oui, chaque longueur est à sa place.'
+              : `Dans ${f.nom}, le côté ${SHORT[f.num]} est au numérateur et ${f.den==='hyp'?'l’hypoténuse':'le côté adjacent'} au dénominateur.`;
+  } else if (s.step === 5){
+    ok = val === 'e0';
+    text = ok ? 'Oui : on multiplie les deux nombres en diagonale, puis on divise par le troisième.'
+              : 'Dans un produit en croix, on multiplie les deux nombres placés en diagonale, puis on divise par le nombre restant.';
+  } else if (s.step === 6){
+    const x = parseFloat(String(val).replace(',', '.').replace(/cm/i,'').trim());
+    if (isNaN(x)) text = 'Écris un nombre, par exemple 4,6.';
+    else if (Math.abs(x - t.answer) < 1e-6){ ok = true; text = 'Exact.'; }
+    else if (Math.abs(x - t.exact) < 0.1) text = 'Presque : arrondis au dixième le plus proche.';
+    else if (Math.abs(x - t.radVal) < 0.1) text = 'Ta calculatrice est en radians. Passe-la en mode degrés.';
+    else text = 'Ce n’est pas ça. Vérifie ta saisie et le mode degrés de la calculatrice.';
+    if (!ok){ s.msg = {ok:false, text}; s.fresh = -1; render(); return; }
+  }
+  if (ok){ s.step++; s.wrong = []; s.msg = {ok:true, text}; s.fresh = s.step; }
+  else { s.wrong.push(val); s.msg = {ok:false, text}; s.fresh = -1; }
+  render();
+}
+
+/* ---------- rendu ---------- */
+function render(){
+  const t = TRIS[cur], s = state[cur];
+  document.getElementById('tabs').innerHTML = TRIS.map((_,i) =>
+    `<button type="button" class="tab${state[i].step>=NSTEPS?' done':''}" data-i="${i}" aria-current="${i===cur}">${state[i].step>=NSTEPS?'✓ ':''}Triangle ${i+1}</button>`).join('');
+  document.getElementById('fig').innerHTML = drawFigure(t, s);
+  document.getElementById('lines').innerHTML = drawLines(t, s);
+  const q = document.getElementById('question');
+  q.innerHTML = question(t, s);
+  s.fresh = -1;
+  q.querySelectorAll('.opt').forEach(b => b.addEventListener('click', () => check(b.dataset.val)));
+  const form = document.getElementById('valform');
+  if (form){
+    form.addEventListener('submit', e => { e.preventDefault(); check(document.getElementById('val').value); });
+    document.getElementById('val').focus({preventScroll:true});
+  }
+  const redo = document.getElementById('redo');
+  if (redo) redo.addEventListener('click', () => { state[cur] = fresh(); render(); });
+  const next = document.getElementById('next');
+  if (next) next.addEventListener('click', () => { cur = (cur+1) % TRIS.length; state[cur].msg = null; render(); });
+}
+document.getElementById('tabs').addEventListener('click', e => {
+  const b = e.target.closest('.tab'); if (!b) return;
+  cur = +b.dataset.i; state[cur].msg = null; render();
+});
+render();
+</script>
+</body>
+</html>
